@@ -50,6 +50,10 @@ TRAIL_TRIGGER_PCT = 0.6 / 100      # 执行条件：从峰值回落0.6%
 TRAIL_INTERVAL = 5                  # 移动止盈检查间隔（秒）
 POLL_INTERVAL = 2                    # 价格数据轮询间隔（秒）
 
+# ========== v2.13: 开仓价格保护 ==========
+OPEN_PROTECT_PCT = 1.0 / 100    # 开仓价偏离极值的1%保护
+OPEN_PROTECT_LOOKBACK = 100     # 5m K线回看根数
+
 # ========== 工具 ==========
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
@@ -1093,6 +1097,15 @@ def main():
                     if last_sig.get(sig, 0) + 300 > time.time():
                         log(f"⏳ {sig}信号冷却中，跳过")
                     else:
+                        # ========== v2.13: 开仓价格保护 ==========
+                        k5m_low = min(k[3] for k in k5m)
+                        k5m_high = max(k[2] for k in k5m)
+                        if sig == 'short' and price <= k5m_low * (1 + OPEN_PROTECT_PCT):
+                            log(f"🛡️ 开仓保护: 做空价${price:.1f}≤100×5m最低${k5m_low:.1f}×1.01，跳过")
+                            continue
+                        if sig == 'long' and price >= k5m_high * (1 - OPEN_PROTECT_PCT):
+                            log(f"🛡️ 开仓保护: 做多价${price:.1f}≥100×5m最高${k5m_high:.1f}×0.99，跳过")
+                            continue
                         # ========== v2.11.6: 仓位间隔>1.5%检查 ==========
                         existing_positions = state.get('positions', [])
                         if existing_positions:
