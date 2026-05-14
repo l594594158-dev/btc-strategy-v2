@@ -48,7 +48,8 @@ MAX_POSITIONS_PER_DIR = 3     # 单方向最大仓位数量（v2.8）
 # ========== v2.9: 移动止盈参数（集成进主策略）==========
 TRAIL_ACTIVATION_PCT = 1.0 / 100   # 激活条件：超出开仓价1.0%
 TRAIL_TRIGGER_PCT = 0.6 / 100      # 执行条件：从峰值回落0.6%
-TRAIL_INTERVAL = 5                  # 移动止盈检查间隔（秒，与轮询同步）
+TRAIL_INTERVAL = 5                  # 移动止盈检查间隔（秒）
+POLL_INTERVAL = 2                    # 价格数据轮询间隔（秒）
 
 # ========== 工具 ==========
 def log(msg):
@@ -953,7 +954,7 @@ def main():
 
             # ========== v2.9: 移动止盈（集成版）==========
             # 使用exchange_pos（交易所实时持仓），避免幽灵仓位
-            if has_pos:
+            if has_pos and time.time() - state.get('last_trail_check', 0) >= TRAIL_INTERVAL:
                 price = data['5m']['price']
                 trail_closed = []  # 记录被移动止盈平仓的仓位entry_price
                 # 将exchange_pos转为本地positions格式用于移动止盈追踪
@@ -1018,6 +1019,7 @@ def main():
                         state = {'in_position': False, 'positions': []}
                     else:
                         save_state(state)
+                state['last_trail_check'] = time.time()
 
             # ========== v2.7: 有持仓时，每分钟检查各仓位SL/TP是否完整 ==========
             if has_pos and cycle % 6 == 0:
@@ -1127,7 +1129,7 @@ def main():
                             except Exception as e:
                                 log(f"❌ 开仓失败: {e}")
 
-            time.sleep(5)
+            time.sleep(POLL_INTERVAL)
 
         except KeyboardInterrupt:
             log("🛑 停止")
@@ -1140,7 +1142,7 @@ def main():
             log(f"❌ 异常: {e}")
             import traceback; traceback.print_exc()
             work_log("错误", str(e)[:100])
-            time.sleep(5)
+            time.sleep(POLL_INTERVAL)
 
 if __name__ == "__main__":
     main()
